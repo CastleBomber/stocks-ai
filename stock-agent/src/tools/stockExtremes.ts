@@ -9,9 +9,9 @@
  *   - *Adds a note if IPO date is out of retrieved data range
  *
  * Questons:
- *   - What is the lowest price SPY? 
- *   - What is the highest price ever of WPM?
- *   - What is the lowest ever price of GE?  
+ *   - "What is the lowest price SPY?"
+ *   - "What is the highest price ever of WPM?"
+ *   - "What is the lowest ever price of GE?"  
  * 
  * Answers:
  *   - SPY (lowest): $43.94 January 29th, 1993 (IPO)

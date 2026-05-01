@@ -26,10 +26,11 @@
  *   - Never swap or invent data
  * 
  * Tools:
+ *   - currentDateTime -> current date and time (NY Stock Exchange)
  *   - stockPriceCurrent -> current closing price
  *   - stockExtremes -> all-time low/high extremes with dates
  *   - stockPriceOnDate -> closing price for a specific date
- *   - stockNews => recent headlines (14-day window, fallback to 90 days)
+ *   - stockNews -> recent headlines (14-day window, fallback to 90 days)
  * 
  * Built with Mastra v1.4.x Agent API, OpenAI GPT-4o
  */
@@ -42,6 +43,7 @@ import { stockPriceCurrent } from "../tools/stockPriceCurrent";
 import { stockNews } from "../tools/stockNews";
 import { stockPriceOnDate } from "../tools/stockPriceOnDate";
 import { stockExtremes } from "../tools/stockExtremes";
+import { currentDateTime } from "../tools/currentDateTime";
 
 // --- Memory Setup ---
 const mem = new Memory({
@@ -52,12 +54,6 @@ const mem = new Memory({
   }),
 });
 
-const today = new Date().toLocaleDateString("en-US", {
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-});
-
 export const stockAgent = new Agent({
   id: "stock-agent",
   name: "Stock Agent",
@@ -65,8 +61,6 @@ export const stockAgent = new Agent({
   memory: mem,
 
   instructions: `
-    Today's date is ${today}. Use this as the current real-world date.
-
     You are a helpful assistant.
 
     Use remembered conversation context when helpful. Do not invent memory or facts.
@@ -75,13 +69,18 @@ export const stockAgent = new Agent({
     - Never guess prices, dates, or market data.
     - If a tool returns no data, say you cannot confirm the answer.
     - Keep responses clean and easy to read.
-    - Use this date format for all final answers: Month Day, Year (example: January 1, 1967).
+    - Use this date format for all final answers: Month Day, Year.
+    - When asked for today's date, current time, or current day, use currentDateTime.
+
+    When using currentDateTime:
+    - Report the returned date/time exactly.
+    - Date format: Month Day, Year
+    - Time format: h:mm AM/PM with timezone abbreviation.
 
     When using stockPriceCurrent:
     - Report the latest available price.
     - Format: <Symbol>: $<price>
     - Round to 2 decimals.
-
 
     When using stockPriceOnDate:
     - If the user asks for a specific date, report the closing price for that date.
@@ -115,6 +114,7 @@ export const stockAgent = new Agent({
   `,
 
   tools: {
+    currentDateTime,
     stockPriceCurrent,
     stockExtremes,
     stockNews,
