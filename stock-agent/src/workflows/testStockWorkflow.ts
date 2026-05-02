@@ -12,7 +12,7 @@
  *   4) Calculate percent distance from ATH
  *
  * Example usage:
- *   npx tsx testWorkflow.ts
+ *   npx tsx testStockWorkflow.ts
  * 
  *   Change symbol
  *   symbol: "SPY"
@@ -59,6 +59,8 @@ async function main() {
     const result = await run.start({
         inputData: { symbol: "SPY" }
     });
+
+    console.log(`${result.result.symbol} is ${result.result.percentFromATH}`);
 }
 
 main();
