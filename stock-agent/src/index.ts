@@ -50,6 +50,7 @@ import { LibSQLStore } from "@mastra/libsql";
 import { Observability, DefaultExporter, SensitiveDataFilter } from "@mastra/observability";
 import { stockAgent } from "./agents/stockAgent";
 import { stockWorkflow } from "./workflows/stockWorkflow";
+import { compareStocksWorkflow } from "./workflows/compareStocksWorkflow";
 import { DuckDBStore } from "@mastra/duckdb";
 
 const compositeStorage = new MastraCompositeStore({
@@ -65,7 +66,7 @@ const compositeStorage = new MastraCompositeStore({
 
 export const mastra = new Mastra({
   agents: { stockAgent },
-  workflows: { stockWorkflow },
+  workflows: { stockWorkflow, compareStocksWorkflow },
   storage: compositeStorage,
   observability: new Observability({
     configs: {

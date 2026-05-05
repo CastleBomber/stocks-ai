@@ -24,21 +24,19 @@
  *   ranked (array) - objects containing { symbol, percentFromATH } sorted
  *                    by smallest percentage below ATH (i.e., closest to peak)
  * 
- * Built with Mastra v1.3.4 parallel execution and workflow composition
+ * Built with Mastra v1.4+ parallel execution and workflow composition
  */
 
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import { stockWorkflow } from "./stockWorkflow";
-
-/*
-Input:
-["NVDA","AAPL","MSFT"]
-*/
+import { Mastra } from "@mastra/core";
 
 const stepCompare = createStep({
-    id: "rank",
+    id: "compare",
+
     inputSchema: z.record(z.any()),
+
     outputSchema: z.object({
         ranked: z.array(
             z.object({
@@ -49,19 +47,36 @@ const stepCompare = createStep({
     }),
 
     execute: async ({ inputData }) => {
-        // Flatten parallel results
-        const values = Object.values(inputData) as any[];
+        // Used to register and run workflows inside a Mastra runtime
+        const mastra = new Mastra({
+            workflows: { stockWorkflow },
+        });
 
-        const ranked = values
-            .map(v => ({
-                symbol: v.symbol,
-                percentFromATH: v.percentFromATH,
-                raw: parseFloat(v.percentFromATH?.split("%")[0] || "999"),
-            }))
-            .sort((a, b) => a.raw - b.raw); // Closest to ATH first
+        const results = await Promise.all(
+            // Dynamic input of stock symbols
+            inputData.symbols.map(async (symbol) => {
+                const run = await mastra
+                .getWorkflow("stockWorkflow")
+                .createRun();
+
+                const result = await run.start({
+                    inputData: { symbol },
+                });
+
+                return result.result;
+            })
+        );    
+
+        const ranked = results
+        .map((r: any) => ({
+            symbol: r.symbol,
+            percentFromATH: r.percentFromATH,
+            raw: parseFloat(r.percentFromATH?.split("%")[0] || "999"),
+        }))
+        .sort((a, b) => a.raw - b.raw);
 
         return {
-            ranked,
+            ranked
         };
     },
 });
@@ -80,11 +95,6 @@ export const compareStocksWorkflow = createWorkflow({
         ),
     }),
 })
-    .parallel([
-        stockWorkflow.withInput((ctx) => ({ symbol: ctx.symbols[0] })),
-        stockWorkflow.withInput((ctx) => ({ symbol: ctx.symbols[1] })),
-        stockWorkflow.withInput((ctx) => ({ symbol: ctx.symbols[2] })),
-    ])
     .then(stepCompare)
     .commit();
 
