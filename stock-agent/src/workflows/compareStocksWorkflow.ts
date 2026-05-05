@@ -82,7 +82,8 @@ const stepCompare = createStep({
 });
 
 export const compareStocksWorkflow = createWorkflow({
-    id: "compare-stocks",
+    id: "stocks-compare-ATH",
+
     inputSchema: z.object({
         symbols: z.array(z.string()),
     }),

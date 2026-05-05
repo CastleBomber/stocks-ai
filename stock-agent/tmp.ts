@@ -1,69 +1,143 @@
+/**
+ * stockWorkflow.ts
+ * ----------------
+ * Workflow: Stock Detective
+ * 
+ * Orchestrates a multi-step analysis of a stock:
+ * 1. Fetch current price
+ * 2. Retrieve all-time high/low prices
+ * 3. Calculate percentage distance from all-time high
+ *
+ * Answers questions like:
+ *   - "How far is AAPL from its all-time high?"
+ *
+ * Behavior:
+ *   1) Accepts stock symbol as input
+ *   2) Chains steps, passing accumulated data forward
+ *   3) Returns final enriched object
+ *
+ * Built with Mastra createWorkflow + createStep APIs
+ */
+
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
-import { stockWorkflow } from "./stockWorkflow";
-import { Mastra } from "@mastra/core";
+import { stockPriceCurrent } from "../tools/stockPriceCurrent";
+import { stockExtremes } from "../tools/stockExtremes";
 
-const stepCompare = createStep({
-  id: "compare",
+// Step 1: Get current price
+const stepGetCurrentPrice = createStep({
+  id: "getPrice",
 
-  inputSchema: z.object({
-    symbols: z.array(z.string()),
-  }),
+  inputSchema: z.object({ symbol: z.string() }),
 
   outputSchema: z.object({
-    ranked: z.array(
-      z.object({
-        symbol: z.string(),
-        percentFromATH: z.string().optional(),
-      })
-    ),
+    symbol: z.string(),
+    currentPrice: z.string(),
   }),
 
   execute: async ({ inputData }) => {
-    const mastra = new Mastra({
-      workflows: { stockWorkflow },
-    });
+    const result = await stockPriceCurrent.execute({ symbol: inputData.symbol });
 
-    const results = await Promise.all(
-      // Dynamic input of stock symbols
-      inputData.symbols.map(async (symbol) => {
-        const run = await mastra
-          .getWorkflow("stockWorkflow")
-          .createRun();
-
-        const result = await run.start({
-          inputData: { symbol },
-        });
-
-        return result.result;
-      })
-    );
-
-    const ranked = results
-      .map((r: any) => ({
-        symbol: r.symbol,
-        percentFromATH: r.percentFromATH,
-        raw: parseFloat(r.percentFromATH?.split("%")[0] || "999"),
-      }))
-      .sort((a, b) => a.raw - b.raw);
-
-    return { ranked };
+    return {
+      symbol: inputData.symbol,
+      currentPrice: result.currentPrice,
+    };
   },
 });
 
-export const compareStocksWorkflow = createWorkflow({
-  id: "compare-stocks",
+// Step 2: Get all-time low/high
+const stepGetExtremes = createStep({
+  id: "getHistorical",
+
   inputSchema: z.object({
-    symbols: z.array(z.string()),
+    symbol: z.string(),
+    currentPrice: z.string(),
   }),
+
   outputSchema: z.object({
-    ranked: z.array(
-      z.object({
-        symbol: z.string(),
-        percentFromATH: z.string().optional(),
-      })
-    ),
+    symbol: z.string(),
+    currentPrice: z.string(),
+    lowest: z.number(),
+    lowestDate: z.string(),
+    highest: z.number(),
+    highestDate: z.string(),
+  }),
+
+  execute: async ({ inputData }) => {
+    const result = await stockExtremes.execute({ symbol: inputData.symbol });
+
+    return {
+      ...inputData,
+      lowest: result.lowest,
+      lowestDate: result.lowestDate,
+      highest: result.highest,
+      highestDate: result.highestDate,
+    };
+  },
+});
+
+// Step 3: Calculate distance from ATH
+const stepGetPercentFromATH = createStep({
+  id: "getPercentFromATH",
+
+  inputSchema: z.object({
+    symbol: z.string(),
+    currentPrice: z.string(),
+    lowest: z.number(),
+    lowestDate: z.string(),
+    highest: z.number(),
+    highestDate: z.string(),
+  }),
+
+  outputSchema: z.object({
+    symbol: z.string(),
+    currentPrice: z.string(),
+    lowest: z.number(),
+    lowestDate: z.string(),
+    highest: z.number(),
+    highestDate: z.string(),
+    percentFromATH: z.string().optional(),
+  }),
+
+  execute: async ({ inputData }) => {
+    const current = parseFloat(inputData.currentPrice);
+    const ath = inputData.highest;
+
+    if (!Number.isFinite(current) || !Number.isFinite(ath)) {
+      return { ...inputData };
+    }
+
+    const diffPercent = ((current - ath) / ath) * 100;
+    const absPercent = Math.abs(diffPercent).toFixed(2);
+    const direction = current >= ath ? "above" : "below";
+
+    return {
+      ...inputData,
+      percentFromATH: `${absPercent}% ${direction} ATH`,
+    };
+  },
+});
+
+// Final workflow
+export const stockWorkflow = createWorkflow({
+  id: "stock-detective",
+  name: "Stock Detective",
+
+  inputSchema: z.object({
+    symbol: z.string(),
+  }),
+
+  outputSchema: z.object({
+    symbol: z.string(),
+    currentPrice: z.string(),
+    lowest: z.number(),
+    lowestDate: z.string(),
+    highest: z.number(),
+    highestDate: z.string(),
+    percentFromATH: z.string().optional(),
   }),
 })
-  .then(stepCompare)
+  .then(stepGetCurrentPrice)
+  .then(stepGetExtremes)
+  .then(stepGetPercentFromATH)
   .commit();
